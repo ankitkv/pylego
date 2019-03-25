@@ -206,10 +206,14 @@ def inv_thresholded_sigmoid(x, linear_range=0.8):
                        torch.where(x > 0.5 + l, l - torch.log((1. - x) / (x - linear_range)), x - 0.5))
 
 
-def reparameterize_gaussian(mu, logvar, training):
+def reparameterize_gaussian(mu, logvar, training, return_eps=False):
     std = torch.exp(0.5 * logvar)
     if training:
         eps = torch.randn_like(std)
     else:
         eps = torch.zeros_like(std)
-    return eps.mul(std).add_(mu)
+    ret = eps.mul(std).add_(mu)
+    if return_eps:
+        return ret, eps
+    else:
+        return ret
