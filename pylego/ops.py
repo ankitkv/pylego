@@ -192,6 +192,52 @@ class ResNet(nn.Module):
         return self.layers(x)
 
 
+class MultilayerLSTMCell(nn.RNNCellBase):
+    '''Provides a mutli-layer wrapper for LSTMCell.'''
+
+    def __init__(self, input_size, hidden_size, bias=True, layers=1, every_layer_input=False,
+                 use_previous_higher=False):
+        '''
+        every_layer_input: Consider raw input at every layer.
+        use_previous_higher: Take higher layer at previous timestep as input to current layer.
+        '''
+        super().__init__(input_size, hidden_size, bias=bias)
+        self.layers = layers
+        self.every_layer_input = every_layer_input
+        self.use_previous_higher = use_previous_higher
+        input_sizes = [input_size for _ in range(layers)]
+        if every_layer_input:
+            for i in range(1, layers):
+                input_sizes[i] += hidden_size
+        if use_previous_higher:
+            for i in range(layers - 1):
+                input_sizes[i] += hidden_size
+        self.lstm_cells = nn.ModuleList([nn.LSTMCell(input_sizes[i], hidden_size, bias=bias) for i in range(layers)])
+
+    def forward(self, input_, hx=None):
+        '''
+        Input: input, [(h_0, c_0), ..., (h_L, c_L)]
+        Output: [(h_0, c_0), ..., (h_L, c_L)]
+        '''
+        if hx is None:
+            hx = [None] * self.layers
+        outputs = []
+        recent = input_
+        for layer in range(self.layers):
+            if layer > 0 and self.every_layer_input:
+                recent = torch.cat([recent, input_], dim=1)
+            if layer < self.layers - 1 and self.use_previous_higher:
+                if hx[layer + 1] is None:
+                    prev = recent.new_zeros([recent.size(0), self.hidden_size])
+                else:
+                    prev = hx[layer + 1][0]
+                recent = torch.cat([recent, prev], dim=1)
+            out = self.lstm_cells[layer](recent, hx[layer])
+            recent = out[0]
+            outputs.append(out)
+        return outputs
+
+
 def thresholded_sigmoid(x, linear_range=0.8):
     # t(x)={-l<=x<=l:0.5+x, x<-l:s(x+l)(1-2l), x>l:s(x-l)(1-2l)+2l}
     l = linear_range / 2.0
