@@ -238,6 +238,24 @@ class MultilayerLSTMCell(nn.RNNCellBase):
         return outputs
 
 
+class MultilayerLSTM(nn.Module):
+    '''A multilayer LSTM that uses MultilayerLSTMCell.'''
+
+    def __init__(self, input_size, hidden_size, bias=True, layers=1, every_layer_input=False,
+                 use_previous_higher=False):
+        super().__init__()
+        self.cell = MultilayerLSTMCell(input_size, hidden_size, bias=bias, layers=layers,
+                                       every_layer_input=every_layer_input, use_previous_higher=use_previous_higher)
+
+    def forward(self, input_):
+        hx = None
+        outputs = []
+        for t in range(input_.size(1)):
+            hx = self.cell(input_[:, t], hx)
+            outputs.append(torch.cat([h[:, None, None, :] for (h, c) in hx], dim=2))
+        return torch.cat(outputs, dim=1)  # size: batch_size, length, layers, hidden_size
+
+
 def thresholded_sigmoid(x, linear_range=0.8):
     # t(x)={-l<=x<=l:0.5+x, x<-l:s(x+l)(1-2l), x>l:s(x-l)(1-2l)+2l}
     l = linear_range / 2.0
