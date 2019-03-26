@@ -12,3 +12,9 @@ git clone https://github.com/ankitkv/pylego.git
 cd pylego
 pip install --user -e .
 ```
+
+## Example project
+
+Please see [this implementation of TD-VAE][1] for an example implementation using `pylego`.
+
+[1]: https://github.com/ankitkv/TD-VAE
