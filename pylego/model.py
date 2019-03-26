@@ -84,7 +84,8 @@ class Model(ABC):
             data = data[0]
         return data
 
-    def run_batch(self, data):
+    def run_batch(self, data, visualize=False):
+        """If visualize is True, a visualize method of the model module is called."""
         if not isinstance(data, list) and not isinstance(data, tuple):
             data = [data]
         if self.is_training():
@@ -96,7 +97,10 @@ class Model(ABC):
         else:
             debug_context = contextlib.nullcontext()
         with context, debug_context:
-            return self.model(*data)
+            if not visualize:
+                return self.model(*data)
+            else:
+                return self.model.visualize(*data)
 
     @abstractmethod
     def loss_function(self, forward_ret, labels=None):

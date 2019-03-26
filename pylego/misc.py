@@ -50,7 +50,7 @@ def scaled_int(tensor, scale=1.0):
     return (tensor * float(scale)).astype(np.int32)
 
 
-def save_comparison_grid(fname, *args, border_width=2, desired_aspect=1.0, format='nchw'):
+def save_comparison_grid(fname, *args, border_width=2, border_shade=0.0, desired_aspect=1.0, format='nchw'):
     """Arrange image batches in a grid such that corresponding images in *args are next to each other.
     All images should be in range [0,1]."""
     assert np.all(args[0].shape == arg.shape for arg in args)
@@ -60,10 +60,10 @@ def save_comparison_grid(fname, *args, border_width=2, desired_aspect=1.0, forma
     else:
         assert format == 'nhwc'
 
-    args = np.concatenate([args, np.zeros([args.shape[0], args.shape[1], border_width, args.shape[3], args.shape[4]])],
-                          axis=2)
-    args = np.concatenate([args, np.zeros([args.shape[0], args.shape[1], args.shape[2], border_width, args.shape[4]])],
-                          axis=3)
+    args = np.concatenate([args, border_shade * np.ones([args.shape[0], args.shape[1], border_width, args.shape[3],
+                                                         args.shape[4]])], axis=2)
+    args = np.concatenate([args, border_shade * np.ones([args.shape[0], args.shape[1], args.shape[2], border_width,
+                                                         args.shape[4]])], axis=3)
     args = np.concatenate(args, axis=2)
     aspect_ratio = args.shape[2] / args.shape[1]
     scale_aspect = aspect_ratio / desired_aspect
@@ -98,9 +98,10 @@ def save_comparison_grid(fname, *args, border_width=2, desired_aspect=1.0, forma
         args_block = args_block.reshape(nH - 1, nW, args_block.shape[1], args_block.shape[2], args_block.shape[3])
         args_bottom = args[(nH - 1) * nW:]
         if args_bottom.shape[0] > 0:
-            args_bottom = np.concatenate([args_bottom, np.zeros([args_block.shape[1] - args_bottom.shape[0],
-                                                                 args_bottom.shape[1], args_bottom.shape[2],
-                                                                 args_bottom.shape[3]])], axis=0)
+            args_bottom = np.concatenate([args_bottom,
+                                          border_shade * np.ones([args_block.shape[1] - args_bottom.shape[0],
+                                                                  args_bottom.shape[1], args_bottom.shape[2],
+                                                                  args_bottom.shape[3]])], axis=0)
             args_bottom = args_bottom[None, ...]
             args = np.concatenate([args_block, args_bottom], axis=0)
         else:
@@ -115,9 +116,9 @@ def save_comparison_grid(fname, *args, border_width=2, desired_aspect=1.0, forma
         args_block = args_block.reshape(nH, nW - 1, args_block.shape[1], args_block.shape[2], args_block.shape[3])
         args_right = args[nH * (nW - 1):]
         if args_right.shape[0] > 0:
-            args_right = np.concatenate([args_right, np.zeros([args_block.shape[0] - args_right.shape[0],
-                                                               args_right.shape[1], args_right.shape[2],
-                                                               args_right.shape[3]])], axis=0)
+            args_right = np.concatenate([args_right, border_shade * np.ones([args_block.shape[0] - args_right.shape[0],
+                                                                             args_right.shape[1], args_right.shape[2],
+                                                                             args_right.shape[3]])], axis=0)
             args_right = args_right[:, None, ...]
             args = np.concatenate([args_block, args_right], axis=1)
         else:
@@ -125,8 +126,8 @@ def save_comparison_grid(fname, *args, border_width=2, desired_aspect=1.0, forma
 
     args = np.transpose(args, (0, 2, 1, 3, 4))
     args = args.reshape(args.shape[0] * args.shape[1], args.shape[2] * args.shape[3], args.shape[4])
-    args = np.concatenate([np.zeros([border_width, args.shape[1], args.shape[2]]), args], axis=0)
-    args = np.concatenate([np.zeros([args.shape[0], border_width, args.shape[2]]), args], axis=1)
+    args = np.concatenate([border_shade * np.ones([border_width, args.shape[1], args.shape[2]]), args], axis=0)
+    args = np.concatenate([border_shade * np.ones([args.shape[0], border_width, args.shape[2]]), args], axis=1)
 
     if args.shape[-1] == 1:
         args = args[:, :, 0]
