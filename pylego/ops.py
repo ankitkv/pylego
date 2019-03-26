@@ -194,7 +194,7 @@ class ResNet(nn.Module):
         return self.layers(x)
 
 
-class MultilayerLSTMCell(nn.RNNCellBase):
+class MultilayerLSTMCell(nn.Module):
     '''Provides a mutli-layer wrapper for LSTMCell.'''
 
     def __init__(self, input_size, hidden_size, bias=True, layers=1, every_layer_input=False,
@@ -203,7 +203,8 @@ class MultilayerLSTMCell(nn.RNNCellBase):
         every_layer_input: Consider raw input at every layer.
         use_previous_higher: Take higher layer at previous timestep as input to current layer.
         '''
-        super().__init__(input_size, hidden_size, bias=bias)
+        super().__init__()
+        self.hidden_size = hidden_size
         self.layers = layers
         self.every_layer_input = every_layer_input
         self.use_previous_higher = use_previous_higher
