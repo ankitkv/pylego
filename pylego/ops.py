@@ -3,6 +3,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+LOG2PI = np.log(2.0 * np.pi)
+
 
 class Identity(nn.Module):
 
@@ -288,3 +290,9 @@ def kl_div_gaussian(q_mu, q_logvar, p_mu=0.0, p_logvar=0.0):
     logvar_diff = q_logvar - p_logvar
     kl_div = -0.5 * (1.0 + logvar_diff - logvar_diff.exp() - ((q_mu - p_mu)**2 / p_logvar.exp()))
     return kl_div.sum(dim=-1)
+
+
+def gaussian_log_prob(mu, logvar, x):
+    '''Batched log probability log p(x) computation.'''
+    logprob = -0.5 * (LOG2PI + logvar + ((x - mu)**2 / logvar.exp()))
+    return logprob.sum(dim=-1)
