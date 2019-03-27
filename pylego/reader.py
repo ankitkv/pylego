@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import collections
 
+import numpy as np
+import torch
 from torch.utils import data
 
 
@@ -33,6 +35,7 @@ class DatasetReader(Reader):
         """dataset_splits is a dictionary of {split_name: Dataset}"""
         self.dataset_splits = dataset_splits
         super().__init__(collections.OrderedDict([(k, len(v)) for k, v in dataset_splits.items()]))
+        np.random.seed(0)
 
     def process_batch(self, batch):
         """Process batch before yielding from iter_batches."""
@@ -40,6 +43,7 @@ class DatasetReader(Reader):
 
     def iter_batches(self, split_name, batch_size, shuffle=True, partial_batching=False, threads=1, epochs=1,
                      max_batches=-1):
+        torch.manual_seed(np.random.randint(np.iinfo(np.int16).max))
         loader = data.DataLoader(self.dataset_splits[split_name], batch_size=batch_size, shuffle=shuffle,
                                  num_workers=threads, drop_last=not partial_batching)
         for _ in range(epochs):
