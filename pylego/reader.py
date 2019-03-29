@@ -43,9 +43,10 @@ class DatasetReader(Reader):
 
     def iter_batches(self, split_name, batch_size, shuffle=True, partial_batching=False, threads=1, epochs=1,
                      max_batches=-1):
-        torch.manual_seed(np.random.randint(np.iinfo(np.int16).max))
+        rng_state = torch.get_rng_state()
         loader = data.DataLoader(self.dataset_splits[split_name], batch_size=batch_size, shuffle=shuffle,
                                  num_workers=threads, drop_last=not partial_batching)
+        torch.set_rng_state(rng_state)  # don't let DataLoader reset rng
         for _ in range(epochs):
             for i, batch in enumerate(loader):
                 yield self.process_batch(batch)
