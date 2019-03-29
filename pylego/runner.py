@@ -30,8 +30,8 @@ class Runner(ABC):
         self.threads = threads
 
         torch.manual_seed(seed)
-        random.seed(seed)
-        np.random.seed(seed)
+        random.seed(seed + 21)
+        np.random.seed(seed + 54)
         self.summary_writer = SummaryWriter(log_dir, flush_secs=60)
 
     @abstractmethod
