@@ -208,10 +208,10 @@ class MultilayerLSTMCell(nn.Module):
         self.layers = layers
         self.every_layer_input = every_layer_input
         self.use_previous_higher = use_previous_higher
-        input_sizes = [input_size for _ in range(layers)]
+        input_sizes = [input_size] + [hidden_size for _ in range(1, layers)]
         if every_layer_input:
             for i in range(1, layers):
-                input_sizes[i] += hidden_size
+                input_sizes[i] += input_size
         if use_previous_higher:
             for i in range(layers - 1):
                 input_sizes[i] += hidden_size
