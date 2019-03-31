@@ -50,9 +50,15 @@ def scaled_int(tensor, scale=1.0):
     return (tensor * float(scale)).astype(np.int32)
 
 
-def save_comparison_grid(fname, *args, border_width=2, border_shade=0.0, desired_aspect=1.0, format='nchw'):
+def save_comparison_grid(fname, *args, border_width=2, border_shade=0.0, desired_aspect=1.0, format='nchw',
+                         rows_cols=None, retain_sequence=False):
     """Arrange image batches in a grid such that corresponding images in *args are next to each other.
-    All images should be in range [0,1]."""
+    All images should be in range [0,1].
+
+    The automatic behavior can be overridden by providing the following arguments:
+        rows_cols: tuple (n_rows, n_cols)
+        retain_sequence: retain original image sequence if True
+    """
     assert np.all(args[0].shape == arg.shape for arg in args)
     args = np.array(args)
     if format == 'nchw':
@@ -65,30 +71,34 @@ def save_comparison_grid(fname, *args, border_width=2, border_shade=0.0, desired
     args = np.concatenate([args, border_shade * np.ones([args.shape[0], args.shape[1], args.shape[2], border_width,
                                                          args.shape[4]])], axis=3)
     args = np.concatenate(args, axis=2)
-    aspect_ratio = args.shape[2] / args.shape[1]
-    scale_aspect = aspect_ratio / desired_aspect
 
-    # we want to divide width by scale_aspect, or multiply height by it
-    # want nH * nW = N, with nH / nW = S => nH = S * nW
-    # nW = sqrt(N/S), nH = S*nW
-    nW = np.sqrt(args.shape[0] / scale_aspect)
-    nH = scale_aspect * nW
+    if rows_cols is None:
+        aspect_ratio = args.shape[2] / args.shape[1]
+        scale_aspect = aspect_ratio / desired_aspect
 
-    w_aspect = (np.ceil(nW) * args.shape[2]) / (np.floor(nH) * args.shape[1])
-    h_aspect = (np.floor(nW) * args.shape[2]) / (np.ceil(nH) * args.shape[1])
-    wh_aspect = (np.ceil(nW) * args.shape[2]) / (np.ceil(nH) * args.shape[1])
-    w_diff = (np.abs(w_aspect - desired_aspect), (np.floor(nH), np.ceil(nW)))
-    h_diff = (np.abs(h_aspect - desired_aspect), (np.ceil(nH), np.floor(nW)))
-    wh_diff = (np.abs(wh_aspect - desired_aspect), (np.ceil(nH), np.ceil(nW)))
+        # we want to divide width by scale_aspect, or multiply height by it
+        # want nH * nW = N, with nH / nW = S => nH = S * nW
+        # nW = sqrt(N/S), nH = S*nW
+        nW = np.sqrt(args.shape[0] / scale_aspect)
+        nH = scale_aspect * nW
 
-    for _, (h, w) in sorted([w_diff, h_diff, wh_diff]):
-        if h * w >= args.shape[0]:
-            nH = h
-            nW = w
-            break
-    nH, nW = int(nH), int(nW)
+        w_aspect = (np.ceil(nW) * args.shape[2]) / (np.floor(nH) * args.shape[1])
+        h_aspect = (np.floor(nW) * args.shape[2]) / (np.ceil(nH) * args.shape[1])
+        wh_aspect = (np.ceil(nW) * args.shape[2]) / (np.ceil(nH) * args.shape[1])
+        w_diff = (np.abs(w_aspect - desired_aspect), (np.floor(nH), np.ceil(nW)))
+        h_diff = (np.abs(h_aspect - desired_aspect), (np.ceil(nH), np.floor(nW)))
+        wh_diff = (np.abs(wh_aspect - desired_aspect), (np.ceil(nH), np.ceil(nW)))
 
-    if args.shape[1] <= args.shape[2]:  # keep space at bottom
+        for _, (h, w) in sorted([w_diff, h_diff, wh_diff]):
+            if h * w >= args.shape[0]:
+                nH = h
+                nW = w
+                break
+        nH, nW = int(nH), int(nW)
+    else:
+        nH, nW = rows_cols
+
+    if retain_sequence or args.shape[1] <= args.shape[2]:  # keep space at bottom
         while True:
             args_block = args[:(nH - 1) * nW]
             if args_block.shape[0] < (nH - 1) * nW:
