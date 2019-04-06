@@ -14,12 +14,13 @@ class Runner(ABC):
     """
 
     def __init__(self, reader, batch_size, epochs, log_dir, log_keys=None, threads=1, print_every=50,
-                 visualize_every=-1, seed=0):
+                 visualize_every=-1, max_batches=-1, seed=0):
         self.reader = reader
         self.batch_size = batch_size
         self.epochs = epochs
         self.print_every = print_every
         self.visualize_every = visualize_every
+        self.max_batches = max_batches
         self.model = None
         self.epoch_reports = []
         self.summary_writer = None
@@ -117,7 +118,8 @@ class Runner(ABC):
 
         timestamp = time.time()
         for i, batch in enumerate(self.reader.iter_batches(split, self.batch_size, shuffle=train,
-                                                           partial_batching=not train, threads=self.threads)):
+                                                           partial_batching=not train, threads=self.threads,
+                                                           max_batches=self.max_batches)):
 
             ret_report = self.run_batch(batch, train=train)
             if not ret_report:
