@@ -82,10 +82,11 @@ class Runner(ABC):
 
     def log_report(self, report, train_steps, prefix=""):
         """Log the given report to TensorBoard summary."""
-        for k, v in report.items():
-            if k in self.log_keys:
-                new_key = prefix + k
-                self.summary_writer.add_scalar(new_key, v, global_step=train_steps)
+        if report is not None:
+            for k, v in report.items():
+                if k in self.log_keys:
+                    new_key = prefix + k
+                    self.summary_writer.add_scalar(new_key, v, global_step=train_steps)
 
     def log_train_report(self, report, train_steps):
         """Log batch train report."""
