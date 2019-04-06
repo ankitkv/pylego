@@ -27,8 +27,7 @@ class Model(ABC):
         self.train_steps = 0
         if self.model is not None:
             self.model.to(self.device)
-        if self.optimizer is not None:
-            self.model.to(self.device)
+
         self.initialize(load_file)
 
     def load(self, load_file):
