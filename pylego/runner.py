@@ -165,7 +165,7 @@ class Runner(ABC):
         else:
             for epoch in range(self.epochs):
                 self.run_epoch(epoch, train_split, train=True)
-                if val_split is not None:
+                if val_split:
                     self.run_epoch(epoch, val_split, train=False)
-            if test_split is not None:
+            if test_split:
                 self.run_epoch(epoch + 1, test_split, train=False, log=False)
