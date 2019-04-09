@@ -110,6 +110,20 @@ class Runner(ABC):
         epoch=-1 means the model is run only for visualization."""
         pass
 
+    def clean_report(self, ret_report):
+        if not ret_report:
+            report = collections.OrderedDict()
+        elif not isinstance(ret_report, collections.OrderedDict):
+            report = collections.OrderedDict()
+            for k in sorted(ret_report.keys()):
+                report[k] = ret_report[k]
+        else:
+            report = ret_report
+        for k, v in report.items():
+            if isinstance(v, torch.Tensor):
+                report[k] = v.item()
+        return report
+
     def run_epoch(self, epoch, split, train=False, log=True):
         """Iterates the epoch data for a specific split."""
         print('\n* Starting epoch %d, split %s' % (epoch, split), '(train: ' + str(train) + ')')
@@ -121,16 +135,7 @@ class Runner(ABC):
                                                            partial_batching=not train, threads=self.threads,
                                                            max_batches=self.max_batches)):
 
-            ret_report = self.run_batch(batch, train=train)
-            if not ret_report:
-                report = collections.OrderedDict()
-            elif not isinstance(ret_report, collections.OrderedDict):
-                report = collections.OrderedDict()
-                for k in sorted(ret_report.keys()):
-                    report[k] = ret_report[k]
-            else:
-                report = ret_report
-
+            report = self.clean_report(self.run_batch(batch, train=train))
             report['time_'] = time.time() - timestamp
             if train:
                 self.log_train_report(report, self.model.get_train_steps())
