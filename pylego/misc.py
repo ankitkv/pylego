@@ -144,3 +144,24 @@ def save_comparison_grid(fname, *args, border_width=2, border_shade=0.0, desired
 
     im = Image.fromarray((args * 255).astype(np.uint8))
     im.save(fname)
+
+
+class LinearDecay:
+    '''Utility class for linear decay that provides a method to return the current decay value at given x.'''
+
+    def __init__(self, x_start, x_end, y_start, y_end, bound_y=True):
+        '''Initialize using x and y limits. If bound_y is True, y is always bounded between y_start and y_end.'''
+        self.x_start = x_start
+        self.x_end = x_end
+        self.y_start = y_start
+        self.y_end = y_end
+        self.bound_y = bound_y
+
+    def get_y(self, x):
+        y = (((x - self.x_start) * self.y_end) + ((self.x_end - x) * self.y_start)) / (self.x_end - self.x_start)
+        if self.bound_y:
+            if self.y_end > self.y_start:
+                y = max(min(y, self.y_end), self.y_start)
+            else:
+                y = max(min(y, self.y_start), self.y_end)
+        return y
