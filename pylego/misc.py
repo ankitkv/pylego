@@ -165,3 +165,60 @@ class LinearDecay:
             else:
                 y = max(min(y, self.y_start), self.y_end)
         return y
+
+
+# SumTree based on the original implementation at https://github.com/jaromiru/AI-blog/blob/master/SumTree.py
+class SumTree:
+    '''SumTree: a binary tree data structure where the parent’s value is the sum of its children'''
+
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.tree = np.zeros(2 * capacity - 1)
+        self.data = np.zeros(capacity, dtype=object)
+        self.write = 0
+        self.count = 0
+
+    def _propagate(self, idx, change):
+        '''update to the root node'''
+        parent = (idx - 1) // 2
+        self.tree[parent] += change
+        if parent != 0:
+            self._propagate(parent, change)
+
+    def _retrieve(self, idx, s):
+        '''find sample on leaf node'''
+        left = 2 * idx + 1
+        right = left + 1
+        if left >= len(self.tree):
+            return idx
+        if s <= self.tree[left]:
+            return self._retrieve(left, s)
+        else:
+            return self._retrieve(right, s - self.tree[left])
+
+    def total_and_count(self):
+        '''sum of all keys and count'''
+        return self.tree[0], self.count
+
+    def add(self, p, data):
+        '''store priority and sample'''
+        idx = self.write + self.capacity - 1
+        self.data[self.write] = data
+        self.update(idx, p)
+        self.write += 1
+        if self.write >= self.capacity:
+            self.write = 0
+        if self.count < self.capacity:
+            self.count += 1
+
+    def update(self, idx, p):
+        '''update priority'''
+        change = p - self.tree[idx]
+        self.tree[idx] = p
+        self._propagate(idx, change)
+
+    def get(self, s):
+        '''get priority and sample'''
+        idx = self._retrieve(0, s)
+        dataIdx = idx - self.capacity + 1
+        return (idx, self.tree[idx], self.data[dataIdx])
