@@ -196,9 +196,9 @@ class SumTree:
         else:
             return self._retrieve(right, s - self.tree[left])
 
-    def total_and_count(self):
-        '''sum of all keys and count'''
-        return self.tree[0], self.count
+    def total(self):
+        '''sum of all keys'''
+        return self.tree[0]
 
     def add(self, p, data):
         '''store priority and sample'''
