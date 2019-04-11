@@ -173,7 +173,7 @@ class SumTree:
 
     def __init__(self, capacity):
         self.capacity = capacity
-        self.tree = np.zeros(2 * capacity - 1)
+        self.tree = np.zeros(2 * capacity - 1, dtype=np.float32)
         self.data = np.zeros(capacity, dtype=object)
         self.write = 0
         self.count = 0
