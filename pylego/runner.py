@@ -23,7 +23,6 @@ class Runner(ABC):
         self.max_batches = max_batches
         self.model = None
         self.epoch_reports = []
-        self.summary_writer = None
         if log_keys:
             self.log_keys = set(log_keys)
         else:
