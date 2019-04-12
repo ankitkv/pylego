@@ -10,10 +10,11 @@ from torch import autograd, nn, optim
 class Model(ABC):
 
     def __init__(self, model=None, optimizer=None, learning_rate=-1, cuda=True, load_file=None, save_every=500,
-                 save_file=None, debug=False):
+                 save_file=None, max_save_files=5, debug=False):
         self.model = model
         self.save_every = save_every
         self.save_file = save_file
+        self.max_save_files = max_save_files
         self.debug = debug
 
         if isinstance(optimizer, str):
@@ -44,14 +45,14 @@ class Model(ABC):
         if load_file:
             self.load(load_file)
 
-    def save(self, save_file, max_files=5):
+    def save(self, save_file):
         "Save model to file."
         save_fname = save_file + "." + str(self.train_steps)
         print("* Saving model to", save_fname, "...")
         existing = glob.glob(save_file + ".*")
         pairs = [(f.rsplit('.', 1)[-1], f) for f in existing]
         pairs = sorted([(int(k), f) for k, f in pairs if k.isnumeric()], reverse=True)
-        for _, fname in pairs[max_files-1:]:
+        for _, fname in pairs[self.max_save_files - 1:]:
             pathlib.Path(fname).unlink()
 
         save_objs = [self.model.state_dict(), self.optimizer.state_dict(), self.train_steps]
