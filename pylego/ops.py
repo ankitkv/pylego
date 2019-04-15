@@ -250,12 +250,20 @@ class MultilayerLSTM(nn.Module):
         self.cell = MultilayerLSTMCell(input_size, hidden_size, bias=bias, layers=layers,
                                        every_layer_input=every_layer_input, use_previous_higher=use_previous_higher)
 
-    def forward(self, input_):
+    def forward(self, input_, reset=None):
+        '''If reset is 1.0, the RNN state is reset AFTER that timestep's output is produced, otherwise if reset is 0.0,
+        nothing is changed.'''
         hx = None
         outputs = []
         for t in range(input_.size(1)):
             hx = self.cell(input_[:, t], hx)
             outputs.append(torch.cat([h[:, None, None, :] for (h, c) in hx], dim=2))
+            if reset is not None:
+                reset_t = reset[:, t, None]
+                if torch.any(reset_t > 1e-6):
+                    for i, (h, c) in enumerate(hx):
+                        hx[i] = (h * (1.0 - reset_t), c * (1.0 - reset_t))
+
         return torch.cat(outputs, dim=1)  # size: batch_size, length, layers, hidden_size
 
 
