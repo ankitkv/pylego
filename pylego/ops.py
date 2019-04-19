@@ -294,8 +294,12 @@ def reparameterize_gaussian(mu, logvar, sample, return_eps=False):
         return ret
 
 
-def kl_div_gaussian(q_mu, q_logvar, p_mu=0.0, p_logvar=0.0):
+def kl_div_gaussian(q_mu, q_logvar, p_mu=None, p_logvar=None):
     '''Batched KL divergence D(q||p) computation.'''
+    if p_mu is None or p_logvar is None:
+        zero = q_mu.new_zeros(1)
+        p_mu = p_mu or zero
+        p_logvar = p_logvar or zero
     logvar_diff = q_logvar - p_logvar
     kl_div = -0.5 * (1.0 + logvar_diff - logvar_diff.exp() - ((q_mu - p_mu)**2 / p_logvar.exp()))
     return kl_div.sum(dim=-1)
