@@ -203,6 +203,7 @@ class SumTree:
     def add(self, p, data):
         '''store priority and sample'''
         idx = self.write + self.capacity - 1
+        old_obj = self.data[self.write]
         self.data[self.write] = data
         self.update(idx, p)
         self.write += 1
@@ -210,6 +211,7 @@ class SumTree:
             self.write = 0
         if self.count < self.capacity:
             self.count += 1
+        return old_obj
 
     def update(self, idx, p):
         '''update priority'''
