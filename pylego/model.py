@@ -9,8 +9,8 @@ from torch import autograd, nn, optim
 
 class Model(ABC):
 
-    def __init__(self, model=None, optimizer=None, learning_rate=-1, cuda=True, load_file=None, save_every=500,
-                 save_file=None, max_save_files=5, debug=False):
+    def __init__(self, model=None, optimizer=None, learning_rate=-1, momentum=-1, cuda=True, load_file=None,
+                 save_every=500, save_file=None, max_save_files=5, debug=False):
         self.model = model
         self.save_every = save_every
         self.save_file = save_file
@@ -22,6 +22,13 @@ class Model(ABC):
                 if learning_rate < 0.0:
                     learning_rate = 1e-3
                 self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+            elif optimizer == 'rmspropc':
+                if learning_rate < 0.0:
+                    learning_rate = 0.01
+                if momentum < 0.0:
+                    momentum = 0.0
+                self.optimizer = optim.RMSprop(self.model.parameters(), lr=learning_rate, momentum=momentum,
+                                               centered=True)
         else:
             self.optimizer = optimizer
         self.device = torch.device("cuda" if cuda else "cpu")
