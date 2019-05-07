@@ -105,7 +105,10 @@ class ResBlock(nn.Module):
 
         n = self.conv1.kernel_size[0] * self.conv1.kernel_size[1] * self.conv1.out_channels
         self.conv1.weight.data.normal_(0, (layer_index ** (-0.5)) *  np.sqrt(2. / n))
-        self.conv2.weight.data.normal_(0, eps / np.sqrt(n))
+        if eps > 0.0:
+            self.conv2.weight.data.normal_(0, eps / np.sqrt(n))
+        else:
+            self.conv2.weight.data.zero_()
 
     def forward(self, x):
         out = self.upsample(x + self.biases[0])
@@ -135,6 +138,7 @@ class ResNet(nn.Module):
         super().__init__()
         self.norm = norm
         self.skip_last_norm = skip_last_norm
+        self.eps = eps
         if block is None:
             block = ResBlock
 
@@ -181,13 +185,14 @@ class ResNet(nn.Module):
         layers = []
         layer_final = final and blocks == 1
         layers.append(block(self.inplanes, planes, stride, rescale, norm=self.norm, nonlinearity=self.nonlinearity,
-                            final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index, eps=eps))
+                            final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index,
+                            eps=self.eps))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
             layer_final = final and i == blocks - 1
             layers.append(block(self.inplanes, planes, norm=self.norm, nonlinearity=self.nonlinearity,
                                 final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index+i,
-                                eps=eps))
+                                eps=self.eps))
 
         return nn.Sequential(*layers)
 
