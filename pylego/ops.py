@@ -78,7 +78,7 @@ class ResBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, rescale=None, norm=None, nonlinearity=F.elu, final=False,
-                 skip_last_norm=False, layer_index=1):
+                 skip_last_norm=False, layer_index=1, eps=0.0):
         super().__init__()
         self.final = final
         self.skip_last_norm = skip_last_norm
@@ -105,7 +105,7 @@ class ResBlock(nn.Module):
 
         n = self.conv1.kernel_size[0] * self.conv1.kernel_size[1] * self.conv1.out_channels
         self.conv1.weight.data.normal_(0, (layer_index ** (-0.5)) *  np.sqrt(2. / n))
-        self.conv2.weight.data.zero_()
+        self.conv2.weight.data.normal_(0, eps / np.sqrt(n))
 
     def forward(self, x):
         out = self.upsample(x + self.biases[0])
@@ -130,7 +130,7 @@ class ResBlock(nn.Module):
 class ResNet(nn.Module):
 
     def __init__(self, inplanes, layers, block=None, norm=None, nonlinearity=F.elu, skip_last_norm=False,
-                 previous_blocks=0):
+                 previous_blocks=0, eps=0.0):
         '''layers is a list of tuples (layer_size, input_planes, stride). Negative stride for upscaling.'''
         super().__init__()
         self.norm = norm
@@ -181,12 +181,13 @@ class ResNet(nn.Module):
         layers = []
         layer_final = final and blocks == 1
         layers.append(block(self.inplanes, planes, stride, rescale, norm=self.norm, nonlinearity=self.nonlinearity,
-                            final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index))
+                            final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index, eps=eps))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
             layer_final = final and i == blocks - 1
             layers.append(block(self.inplanes, planes, norm=self.norm, nonlinearity=self.nonlinearity,
-                                final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index+i))
+                                final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index+i,
+                                eps=eps))
 
         return nn.Sequential(*layers)
 
