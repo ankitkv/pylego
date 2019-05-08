@@ -100,7 +100,10 @@ class ResBlock(nn.Module):
             self.bn2 = Identity()
         self.rescale = rescale
         self.stride = stride
-        self.gain = nn.Parameter(torch.ones(1, 1, 1, 1))
+        if eps > 0.0:
+            self.gain = 1.0  # disable gain if we're trying to Lipschitz constrain the module
+        else:
+            self.gain = nn.Parameter(torch.ones(1, 1, 1, 1))
         self.biases = nn.ParameterList([nn.Parameter(torch.zeros(1, 1, 1, 1)) for _ in range(4)])
 
         n = self.conv1.kernel_size[0] * self.conv1.kernel_size[1] * self.conv1.out_channels
