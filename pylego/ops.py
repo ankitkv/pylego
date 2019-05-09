@@ -78,7 +78,7 @@ class ResBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, rescale=None, norm=None, nonlinearity=F.elu, final=False,
-                 skip_last_norm=False, layer_index=1, eps=0.0):
+                 skip_last_norm=False, fixup_l=1, negative_slope=0.0, enable_gain=True):
         super().__init__()
         self.final = final
         self.skip_last_norm = skip_last_norm
@@ -100,20 +100,23 @@ class ResBlock(nn.Module):
             self.bn2 = Identity()
         self.rescale = rescale
         self.stride = stride
-        if eps > 0.0:
+        if not enable_gain:
             self.gain = 1.0  # disable gain if we're trying to Lipschitz constrain the module
         else:
             self.gain = nn.Parameter(torch.ones(1, 1, 1, 1))
         self.biases = nn.ParameterList([nn.Parameter(torch.zeros(1, 1, 1, 1)) for _ in range(4)])
 
-        n = self.conv1.kernel_size[0] * self.conv1.kernel_size[1] * self.conv1.out_channels
-        self.conv1.weight.data.normal_(0, (layer_index ** (-0.5)) *  np.sqrt(2. / n))
-        if eps > 0.0:
-            self.conv2.weight.data.normal_(0, eps / np.sqrt(n))
+        nn.init.kaiming_normal_(self.conv1.weight, mode='fan_out', a=negative_slope)
+        self.conv1.weight.data.mul_(fixup_l ** (-0.5))
+        if not enable_gain:
+            nn.init.kaiming_normal_(self.conv2.weight, mode='fan_out', a=negative_slope)
+            self.conv2.weight.data.mul_(fixup_l ** (-0.5))
         else:
             self.conv2.weight.data.zero_()
 
     def forward(self, x):
+        identity = x
+
         out = self.upsample(x + self.biases[0])
         out = self.conv1(out) + self.biases[1]
         out = self.bn1(out)
@@ -124,9 +127,12 @@ class ResBlock(nn.Module):
             out = self.bn2(out)
 
         if self.rescale is not None:
-            x = self.rescale(x)
+            rescale = self.rescale
+            if self.final and self.skip_last_norm:
+                rescale = rescale[:-1]
+            identity = rescale(x + self.biases[0])
 
-        out += x
+        out += identity
         if not self.final:
             out = self.nonlinearity(out)
 
@@ -136,24 +142,27 @@ class ResBlock(nn.Module):
 class ResNet(nn.Module):
 
     def __init__(self, inplanes, layers, block=None, norm=None, nonlinearity=F.elu, skip_last_norm=False,
-                 previous_blocks=0, eps=0.0):
+                 total_layers=-1, negative_slope=0.0, enable_gain=True):
         '''layers is a list of tuples (layer_size, input_planes, stride). Negative stride for upscaling.'''
         super().__init__()
         self.norm = norm
         self.skip_last_norm = skip_last_norm
-        self.eps = eps
+        self.negative_slope = negative_slope
+        self.enable_gain = enable_gain
         if block is None:
             block = ResBlock
 
         self.inplanes = inplanes
         self.nonlinearity = nonlinearity
         all_layers = []
-        layer_index = 1 + previous_blocks
+        if total_layers < 0:
+            fixup_l = sum(l[0] for l in layers)
+        else:
+            fixup_l = total_layers
         for i, (layer_size, inplanes, stride) in enumerate(layers):
             final = (i == len(layers) - 1)
             all_layers.append(self._make_layer(block, inplanes, layer_size, stride=stride, final=final,
-                                               layer_index=layer_index))
-            layer_index += layer_size
+                                               fixup_l=fixup_l))
         self.layers = nn.Sequential(*all_layers)
 
         for m in self.modules():
@@ -161,7 +170,7 @@ class ResNet(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-    def _make_layer(self, block, planes, blocks, stride=1, final=False, layer_index=1):
+    def _make_layer(self, block, planes, blocks, stride=1, final=False, fixup_l=1):
         rescale = None
         if self.norm is not None:
             batch_norm2d = self.norm(planes * block.expansion, affine=True)
@@ -182,20 +191,19 @@ class ResNet(nn.Module):
                     batch_norm2d,
                 )
                 conv = 0
-            n = rescale[conv].kernel_size[0] * rescale[conv].kernel_size[1] * rescale[conv].out_channels
-            rescale[conv].weight.data.normal_(0, np.sqrt(2. / n))
+            nn.init.kaiming_normal_(rescale[conv].weight, mode='fan_out', a=self.negative_slope)
 
         layers = []
         layer_final = final and blocks == 1
         layers.append(block(self.inplanes, planes, stride, rescale, norm=self.norm, nonlinearity=self.nonlinearity,
-                            final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index,
-                            eps=self.eps))
+                            final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
+                            negative_slope=self.negative_slope, enable_gain=self.enable_gain))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
             layer_final = final and i == blocks - 1
             layers.append(block(self.inplanes, planes, norm=self.norm, nonlinearity=self.nonlinearity,
-                                final=layer_final, skip_last_norm=self.skip_last_norm, layer_index=layer_index+i,
-                                eps=self.eps))
+                                final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
+                                negative_slope=self.negative_slope, enable_gain=self.enable_gain))
 
         return nn.Sequential(*layers)
 
