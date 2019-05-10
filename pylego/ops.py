@@ -166,17 +166,17 @@ class ResNet(nn.Module):
         self.layers = nn.Sequential(*all_layers)
 
         for m in self.modules():
-            if isinstance(m, nn.BatchNorm2d):
+            if isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.InstanceNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
     def _make_layer(self, block, planes, blocks, stride=1, final=False, fixup_l=1):
         rescale = None
-        if self.norm is not None:
-            batch_norm2d = self.norm(planes * block.expansion, affine=True)
-        else:
-            batch_norm2d = Identity()
         if stride != 1 or self.inplanes != planes * block.expansion:
+            if self.norm is not None:
+                batch_norm2d = self.norm(planes * block.expansion, affine=True)
+            else:
+                batch_norm2d = Identity()
             if stride < 0:
                 stride_ = -stride
                 rescale = nn.Sequential(
@@ -204,6 +204,126 @@ class ResNet(nn.Module):
             layers.append(block(self.inplanes, planes, norm=self.norm, nonlinearity=self.nonlinearity,
                                 final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
                                 negative_slope=self.negative_slope, enable_gain=self.enable_gain))
+
+        return nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.layers(x)
+
+
+class ResBlock1d(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, hidden_size, rescale=None, norm=None, nonlinearity=F.elu, final=False,
+                 skip_last_norm=False, fixup_l=1, enable_gain=True):
+        super().__init__()
+        self.final = final
+        self.skip_last_norm = skip_last_norm
+        self.fc1 = nn.Linear(inplanes, hidden_size, bias=False)
+        if norm is not None:
+            self.bn1 = norm(hidden_size)
+        else:
+            self.bn1 = Identity()
+        self.nonlinearity = nonlinearity
+        self.fc2 = nn.Linear(hidden_size, planes, bias=False)
+        if norm is not None:
+            self.bn2 = norm(planes)
+        else:
+            self.bn2 = Identity()
+        self.rescale = rescale
+        if not enable_gain:
+            self.gain = 1.0  # disable gain if we're trying to Lipschitz constrain the module
+        else:
+            self.gain = nn.Parameter(torch.ones(1, 1))
+        self.biases = nn.ParameterList([nn.Parameter(torch.zeros(1, 1)) for _ in range(4)])
+
+        nn.init.xavier_normal_(self.fc1.weight)
+        self.fc1.weight.data.mul_(fixup_l ** (-0.5))
+        if not enable_gain:
+            nn.init.xavier_normal_(self.fc2.weight)
+            self.fc2.weight.data.mul_(fixup_l ** (-0.5))
+        else:
+            self.fc2.weight.data.zero_()
+
+    def forward(self, x):
+        identity = x
+
+        out = x + self.biases[0]
+        out = self.fc1(out) + self.biases[1]
+        out = self.bn1(out)
+        out = self.nonlinearity(out) + self.biases[2]
+
+        out = self.gain * self.fc2(out) + self.biases[3]
+        if not self.final or not self.skip_last_norm:
+            out = self.bn2(out)
+
+        if self.rescale is not None:
+            rescale = self.rescale
+            if self.final and self.skip_last_norm:
+                rescale = rescale[:-1]
+            identity = rescale(x + self.biases[0])
+
+        out += identity
+        if not self.final:
+            out = self.nonlinearity(out)
+
+        return out
+
+
+class ResNet1d(nn.Module):
+
+    def __init__(self, inplanes, layers, block=None, norm=None, nonlinearity=F.elu, skip_last_norm=False,
+                 total_layers=-1, enable_gain=True):
+        '''layers is a list of tuples (layer_size, inout_planes, hidden_size).
+        Ensure norm has affine=True if necessary.'''
+        super().__init__()
+        self.norm = norm
+        self.skip_last_norm = skip_last_norm
+        self.enable_gain = enable_gain
+        if block is None:
+            block = ResBlock1d
+
+        self.inplanes = inplanes
+        self.nonlinearity = nonlinearity
+        all_layers = []
+        if total_layers < 0:
+            fixup_l = sum(l[0] for l in layers)
+        else:
+            fixup_l = total_layers
+        for i, (layer_size, inplanes, hidden_size) in enumerate(layers):
+            final = (i == len(layers) - 1)
+            all_layers.append(self._make_layer(block, inplanes, hidden_size, layer_size, final=final, fixup_l=fixup_l))
+        self.layers = nn.Sequential(*all_layers)
+
+        for m in self.modules():
+            if isinstance(m, nn.BatchNorm1d) or isinstance(m, nn.LayerNorm):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+
+    def _make_layer(self, block, planes, hidden_size, blocks, final=False, fixup_l=1):
+        rescale = None
+        if self.inplanes != planes * block.expansion:
+            if self.norm is not None:
+                batch_norm1d = self.norm(planes * block.expansion)
+            else:
+                batch_norm1d = Identity()
+            rescale = nn.Sequential(
+                nn.Linear(self.inplanes, planes * block.expansion, bias=False),
+                batch_norm1d,
+            )
+            nn.init.xavier_normal_(rescale[0].weight)
+
+        layers = []
+        layer_final = final and blocks == 1
+        layers.append(block(self.inplanes, planes, hidden_size, rescale=rescale, norm=self.norm,
+                            nonlinearity=self.nonlinearity, final=layer_final, skip_last_norm=self.skip_last_norm,
+                            fixup_l=fixup_l, enable_gain=self.enable_gain))
+        self.inplanes = planes * block.expansion
+        for i in range(1, blocks):
+            layer_final = final and i == blocks - 1
+            layers.append(block(self.inplanes, planes, hidden_size, norm=self.norm, nonlinearity=self.nonlinearity,
+                                final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
+                                enable_gain=self.enable_gain))
 
         return nn.Sequential(*layers)
 
