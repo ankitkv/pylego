@@ -6,25 +6,6 @@ from torch.nn import functional as F
 LOG2PI = np.log(2.0 * np.pi)
 
 
-class Identity(nn.Module):
-
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, x):
-        return x
-
-
-class ScaleGradient(Identity):
-
-    def __init__(self, scale):
-        super().__init__()
-        self.scale = scale
-
-    def backward(self, dx):
-        return self.scale * dx
-
-
 class View(nn.Module):
 
     def __init__(self, *view_as):
@@ -86,18 +67,18 @@ class ResBlock(nn.Module):
             self.upsample = Upsample(-stride)
             stride = 1
         else:
-            self.upsample = Identity()
+            self.upsample = nn.Identity()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         if norm is not None:
             self.bn1 = norm(planes, affine=True)
         else:
-            self.bn1 = Identity()
+            self.bn1 = nn.Identity()
         self.nonlinearity = nonlinearity
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, bias=False)
         if norm is not None:
             self.bn2 = norm(planes, affine=True)
         else:
-            self.bn2 = Identity()
+            self.bn2 = nn.Identity()
         self.rescale = rescale
         self.stride = stride
         if not enable_gain:
@@ -176,7 +157,7 @@ class ResNet(nn.Module):
             if self.norm is not None:
                 batch_norm2d = self.norm(planes * block.expansion, affine=True)
             else:
-                batch_norm2d = Identity()
+                batch_norm2d = nn.Identity()
             if stride < 0:
                 stride_ = -stride
                 rescale = nn.Sequential(
@@ -223,13 +204,13 @@ class ResBlock1d(nn.Module):
         if norm is not None:
             self.bn1 = norm(hidden_size)
         else:
-            self.bn1 = Identity()
+            self.bn1 = nn.Identity()
         self.nonlinearity = nonlinearity
         self.fc2 = nn.Linear(hidden_size, planes, bias=False)
         if norm is not None:
             self.bn2 = norm(planes)
         else:
-            self.bn2 = Identity()
+            self.bn2 = nn.Identity()
         self.rescale = rescale
         if not enable_gain:
             self.gain = 1.0  # disable gain if we're trying to Lipschitz constrain the module
@@ -306,7 +287,7 @@ class ResNet1d(nn.Module):
             if self.norm is not None:
                 batch_norm1d = self.norm(planes * block.expansion)
             else:
-                batch_norm1d = Identity()
+                batch_norm1d = nn.Identity()
             rescale = nn.Sequential(
                 nn.Linear(self.inplanes, planes * block.expansion, bias=False),
                 batch_norm1d,
