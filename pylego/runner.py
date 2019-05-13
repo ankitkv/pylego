@@ -1,4 +1,5 @@
 import collections
+import gc
 import random
 import time
 from abc import ABC, abstractmethod
@@ -157,6 +158,7 @@ class Runner(ABC):
 
         self.model.set_train(False)
         self.post_epoch_visualize(epoch, split)
+        gc.collect()
 
     def run(self, train_split='train', val_split='val', test_split='test', visualize_only=False,
             visualize_split='test'):
