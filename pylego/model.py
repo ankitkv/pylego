@@ -101,6 +101,7 @@ class Model(ABC):
             context = torch.no_grad()
         if self.debug:
             debug_context = autograd.detect_anomaly()
+            self.debug_context = debug_context
         else:
             debug_context = contextlib.nullcontext()
         with context, debug_context:
@@ -128,7 +129,7 @@ class Model(ABC):
         assert self.is_training()
         self.optimizer.zero_grad()
         if self.debug:
-            debug_context = autograd.detect_anomaly()
+            debug_context = self.debug_context
         else:
             debug_context = contextlib.nullcontext()
         with debug_context:
