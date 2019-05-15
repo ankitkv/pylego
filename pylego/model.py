@@ -16,6 +16,8 @@ class Model(ABC):
         self.save_file = save_file
         self.max_save_files = max_save_files
         self.debug = debug
+        if debug:
+            self.debug_context = None
 
         if isinstance(optimizer, str):
             if optimizer == 'adam':
