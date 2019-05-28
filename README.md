@@ -13,8 +13,10 @@ cd pylego
 pip install --user -e .
 ```
 
-## Example project
+## Example projects
 
-Please see [this implementation of TD-VAE][1] for an example implementation using `pylego`.
+An MNIST classification project using `pylego` is included in `examples/mnist_classification`.
+
+For a more advanced example, see [this implementation of TD-VAE][1].
 
 [1]: https://github.com/ankitkv/TD-VAE
