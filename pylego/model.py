@@ -15,6 +15,7 @@ class Model(ABC):
         self.save_every = save_every
         self.save_file = save_file
         self.max_save_files = max_save_files
+        self.debug = debug
         if debug:
             torch.set_anomaly_enabled(True)
 
