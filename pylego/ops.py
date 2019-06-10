@@ -27,6 +27,16 @@ class Upsample(nn.Module):
         return F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode, align_corners=False)
 
 
+class InstanceNormFC(nn.Module):
+
+    def __init__(self, _unused=0, affine=True):
+        super().__init__()
+        self.norm = nn.InstanceNorm1d(1, affine=affine)
+
+    def forward(self, x):
+        return self.norm(x.unsqueeze(1)).squeeze(1)
+
+
 class GridGaussian(nn.Module):
     '''Projects input coordinates [y, x] to a grid of size [h, w] with a 2D Gaussian of mean [y, x] and std sigma.'''
 
