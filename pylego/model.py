@@ -4,7 +4,7 @@ import glob
 import pathlib
 
 import torch
-from torch import autograd, nn, optim
+from torch import nn, optim
 
 
 class Model(ABC):
