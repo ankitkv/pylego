@@ -69,7 +69,7 @@ class ResBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, rescale=None, norm=None, nonlinearity=F.elu, final=False,
-                 skip_last_norm=False, fixup_l=1, negative_slope=0.0, enable_gain=True):
+                 skip_last_norm=False, fixup_l=1, negative_slope=0.0, enable_gain=True, cond_dims=0, cond_model=None):
         super().__init__()
         self.final = final
         self.skip_last_norm = skip_last_norm
@@ -80,15 +80,20 @@ class ResBlock(nn.Module):
             self.upsample = nn.Identity()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         if norm is not None:
-            self.bn1 = norm(planes, affine=True)
+            self.bn1 = norm(planes, affine=not cond_dims)
         else:
             self.bn1 = nn.Identity()
         self.nonlinearity = nonlinearity
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, bias=False)
         if norm is not None:
-            self.bn2 = norm(planes, affine=True)
+            self.bn2 = norm(planes, affine=not cond_dims)
         else:
             self.bn2 = nn.Identity()
+        if cond_dims > 0:
+            self.cond1 = cond_model(planes)
+            self.cond2 = cond_model(planes)
+        else:
+            self.cond1, self.cond2 = None, None
         self.rescale = rescale
         self.stride = stride
         if not enable_gain:
@@ -105,17 +110,23 @@ class ResBlock(nn.Module):
         else:
             self.conv2.weight.data.zero_()
 
-    def forward(self, x):
+    def forward(self, x, y=None):
         identity = x
 
         out = self.upsample(x + self.biases[0])
         out = self.conv1(out) + self.biases[1]
         out = self.bn1(out)
+        if self.cond1 is not None:
+            w, b = self.cond1(y)
+            out = out * w[:, :, None, None] + b[:, :, None, None]
         out = self.nonlinearity(out) + self.biases[2]
 
         out = self.gain * self.conv2(out) + self.biases[3]
         if not self.final or not self.skip_last_norm:
             out = self.bn2(out)
+        if self.cond2 is not None:
+            w, b = self.cond2(y)
+            out = out * w[:, :, None, None] + b[:, :, None, None]
 
         if self.rescale is not None:
             rescale = self.rescale
@@ -133,13 +144,18 @@ class ResBlock(nn.Module):
 class ResNet(nn.Module):
 
     def __init__(self, inplanes, layers, block=None, norm=None, nonlinearity=F.elu, skip_last_norm=False,
-                 total_layers=-1, negative_slope=0.0, enable_gain=True):
-        '''layers is a list of tuples (layer_size, input_planes, stride). Negative stride for upscaling.'''
+                 total_layers=-1, negative_slope=0.0, enable_gain=True, cond_dims=0, cond_model=None):
+        '''layers is a list of tuples (layer_size, input_planes, stride). Negative stride for upscaling.
+        If cond_dims > 0, cond_model should be a function that can create a module based on constructor arg 'channels'.
+        The module should take as input a conditioning variable and producing an output of size (batch_size, channels).
+        '''
         super().__init__()
         self.norm = norm
         self.skip_last_norm = skip_last_norm
         self.negative_slope = negative_slope
         self.enable_gain = enable_gain
+        self.cond_dims = cond_dims
+        self.cond_model = cond_model
         if block is None:
             block = ResBlock
 
@@ -190,13 +206,15 @@ class ResNet(nn.Module):
         layer_final = final and blocks == 1
         layers.append(block(self.inplanes, planes, stride, rescale, norm=self.norm, nonlinearity=self.nonlinearity,
                             final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
-                            negative_slope=self.negative_slope, enable_gain=self.enable_gain))
+                            negative_slope=self.negative_slope, enable_gain=self.enable_gain, cond_dims=self.cond_dims,
+                            cond_model=self.cond_model))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
             layer_final = final and i == blocks - 1
             layers.append(block(self.inplanes, planes, norm=self.norm, nonlinearity=self.nonlinearity,
                                 final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
-                                negative_slope=self.negative_slope, enable_gain=self.enable_gain))
+                                negative_slope=self.negative_slope, enable_gain=self.enable_gain,
+                                cond_dims=self.cond_dims, cond_model=self.cond_model))
 
         return nn.Sequential(*layers)
 
@@ -208,21 +226,32 @@ class ResBlock1d(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, hidden_size, rescale=None, norm=None, nonlinearity=F.elu, final=False,
-                 skip_last_norm=False, fixup_l=1, enable_gain=True):
+                 skip_last_norm=False, fixup_l=1, enable_gain=True, cond_dims=0, cond_model=None):
         super().__init__()
         self.final = final
         self.skip_last_norm = skip_last_norm
         self.fc1 = nn.Linear(inplanes, hidden_size, bias=False)
         if norm is not None:
-            self.bn1 = norm(hidden_size)
+            if norm == nn.LayerNorm:
+                self.bn1 = norm(hidden_size, elementwise_affine=not cond_dims)
+            else:
+                self.bn1 = norm(hidden_size, affine=not cond_dims)
         else:
             self.bn1 = nn.Identity()
         self.nonlinearity = nonlinearity
         self.fc2 = nn.Linear(hidden_size, planes, bias=False)
         if norm is not None:
-            self.bn2 = norm(planes)
+            if norm == nn.LayerNorm:
+                self.bn2 = norm(planes, elementwise_affine=not cond_dims)
+            else:
+                self.bn2 = norm(planes, affine=not cond_dims)
         else:
             self.bn2 = nn.Identity()
+        if cond_dims > 0:
+            self.cond1 = cond_model(hidden_size)
+            self.cond2 = cond_model(planes)
+        else:
+            self.cond1, self.cond2 = None, None
         self.rescale = rescale
         if not enable_gain:
             self.gain = 1.0  # disable gain if we're trying to Lipschitz constrain the module
@@ -238,17 +267,23 @@ class ResBlock1d(nn.Module):
         else:
             self.fc2.weight.data.zero_()
 
-    def forward(self, x):
+    def forward(self, x, y=None):
         identity = x
 
         out = x + self.biases[0]
         out = self.fc1(out) + self.biases[1]
         out = self.bn1(out)
+        if self.cond1 is not None:
+            w, b = self.cond1(y)
+            out = out * w + b
         out = self.nonlinearity(out) + self.biases[2]
 
         out = self.gain * self.fc2(out) + self.biases[3]
         if not self.final or not self.skip_last_norm:
             out = self.bn2(out)
+        if self.cond2 is not None:
+            w, b = self.cond2(y)
+            out = out * w + b
 
         if self.rescale is not None:
             rescale = self.rescale
@@ -266,13 +301,16 @@ class ResBlock1d(nn.Module):
 class ResNet1d(nn.Module):
 
     def __init__(self, inplanes, layers, block=None, norm=None, nonlinearity=F.elu, skip_last_norm=False,
-                 total_layers=-1, enable_gain=True):
+                 total_layers=-1, enable_gain=True, cond_dims=0, cond_model=None):
         '''layers is a list of tuples (layer_size, inout_planes, hidden_size).
-        Ensure norm has affine=True if necessary.'''
+        If cond_dims > 0, cond_model should be a function that can create a module based on constructor arg 'dims'.
+        The module should take as input a conditioning variable and producing an output of size (batch_size, dims).'''
         super().__init__()
         self.norm = norm
         self.skip_last_norm = skip_last_norm
         self.enable_gain = enable_gain
+        self.cond_dims = cond_dims
+        self.cond_model = cond_model
         if block is None:
             block = ResBlock1d
 
@@ -299,7 +337,10 @@ class ResNet1d(nn.Module):
         rescale = None
         if self.inplanes != planes * block.expansion:
             if self.norm is not None:
-                batch_norm1d = self.norm(planes * block.expansion)
+                if self.norm == nn.LayerNorm:
+                    batch_norm1d = self.norm(planes * block.expansion, elementwise_affine=True)
+                else:
+                    batch_norm1d = self.norm(planes * block.expansion, affine=True)
             else:
                 batch_norm1d = nn.Identity()
             rescale = nn.Sequential(
@@ -312,13 +353,14 @@ class ResNet1d(nn.Module):
         layer_final = final and blocks == 1
         layers.append(block(self.inplanes, planes, hidden_size, rescale=rescale, norm=self.norm,
                             nonlinearity=self.nonlinearity, final=layer_final, skip_last_norm=self.skip_last_norm,
-                            fixup_l=fixup_l, enable_gain=self.enable_gain))
+                            fixup_l=fixup_l, enable_gain=self.enable_gain, cond_dims=self.cond_dims,
+                            cond_model=self.cond_model))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
             layer_final = final and i == blocks - 1
             layers.append(block(self.inplanes, planes, hidden_size, norm=self.norm, nonlinearity=self.nonlinearity,
                                 final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
-                                enable_gain=self.enable_gain))
+                                enable_gain=self.enable_gain, cond_dims=self.cond_dims, cond_model=self.cond_model))
 
         return nn.Sequential(*layers)
 
