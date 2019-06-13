@@ -163,7 +163,6 @@ class ResNet(nn.Module):
                 if m.bias is not None:
                     m.bias.data.zero_()
 
-
     def _make_layer(self, block, planes, blocks, stride=1, final=False, fixup_l=1):
         rescale = None
         if stride != 1 or self.inplanes != planes * block.expansion:
@@ -398,6 +397,64 @@ class MultilayerLSTM(nn.Module):
                         hx[i] = (h * (1.0 - reset_t), c * (1.0 - reset_t))
 
         return torch.cat(outputs, dim=1)  # size: batch_size, length, layers, hidden_size
+
+
+class SpectralNorm1d(object):
+    _version = 1
+
+    def __init__(self, name='weight', eps=1e-6):
+        self.name = name
+        self.eps = eps
+
+    def compute_weight(self, module):
+        weight = getattr(module, self.name + '_orig')
+        sigma = torch.clamp(weight.abs().max(), min=self.eps)
+        return weight / sigma
+
+    def remove(self, module):
+        with torch.no_grad():
+            weight = self.compute_weight(module)
+        delattr(module, self.name)
+        delattr(module, self.name + '_orig')
+        module.register_parameter(self.name, torch.nn.Parameter(weight.detach()))
+
+    def __call__(self, module, inputs):
+        setattr(module, self.name, self.compute_weight(module))
+
+    @staticmethod
+    def apply(module, name, eps):
+        for hook in module._forward_pre_hooks.values():
+            if isinstance(hook, SpectralNorm1d) and hook.name == name:
+                raise RuntimeError("Cannot register two spectral_norm1d hooks on the same parameter {}".format(name))
+
+        fn = SpectralNorm1d(name, eps)
+        weight = module._parameters[name]
+
+        delattr(module, fn.name)
+        module.register_parameter(fn.name + "_orig", weight)
+        # We still need to assign weight back as fn.name because all sorts of
+        # things may assume that it exists, e.g., when initializing weights.
+        # However, we can't directly assign as it could be an nn.Parameter and
+        # gets added as a parameter. Instead, we register weight.data as a plain
+        # attribute.
+        setattr(module, fn.name, weight.data)
+
+        module.register_forward_pre_hook(fn)
+        return fn
+
+
+def spectral_norm1d(module, name='weight', eps=1e-6):
+    SpectralNorm1d.apply(module, name, eps)
+    return module
+
+
+def remove_spectral_norm1d(module, name='weight'):
+    for k, hook in module._forward_pre_hooks.items():
+        if isinstance(hook, SpectralNorm1d) and hook.name == name:
+            hook.remove(module)
+            del module._forward_pre_hooks[k]
+            return module
+    raise ValueError("spectral_norm1d of '{}' not found in {}".format(name, module))
 
 
 def thresholded_sigmoid(x, linear_range=0.8):
