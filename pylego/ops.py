@@ -147,8 +147,8 @@ class ResNet(nn.Module):
                  total_layers=-1, negative_slope=0.0, enable_gain=True, cond_dims=0, cond_model=None):
         '''layers is a list of tuples (layer_size, input_planes, stride). Negative stride for upscaling.
         If cond_dims > 0, cond_model should be a function that can create a module based on constructor arg 'channels'.
-        The module should take as input a conditioning variable and producing an output of size (batch_size, channels).
-        '''
+        The module should take as input a conditioning variable and producing two outputs (weight, bias) of sizes
+        (batch_size, channels or 1).'''
         super().__init__()
         self.norm = norm
         self.skip_last_norm = skip_last_norm
@@ -304,7 +304,8 @@ class ResNet1d(nn.Module):
                  total_layers=-1, enable_gain=True, cond_dims=0, cond_model=None):
         '''layers is a list of tuples (layer_size, inout_planes, hidden_size).
         If cond_dims > 0, cond_model should be a function that can create a module based on constructor arg 'dims'.
-        The module should take as input a conditioning variable and producing an output of size (batch_size, dims).'''
+        The module should take as input a conditioning variable and producing two outputs (weight, bias) of sizes
+        (batch_size, dims or 1).'''
         super().__init__()
         self.norm = norm
         self.skip_last_norm = skip_last_norm
