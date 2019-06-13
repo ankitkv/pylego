@@ -158,8 +158,11 @@ class ResNet(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.InstanceNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
+                if m.weight is not None:
+                    m.weight.data.fill_(1)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+
 
     def _make_layer(self, block, planes, blocks, stride=1, final=False, fixup_l=1):
         rescale = None
@@ -287,9 +290,11 @@ class ResNet1d(nn.Module):
         self.layers = nn.Sequential(*all_layers)
 
         for m in self.modules():
-            if isinstance(m, nn.BatchNorm1d) or isinstance(m, nn.LayerNorm):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
+            if isinstance(m, nn.BatchNorm1d) or isinstance(m, nn.InstanceNorm1d) or isinstance(m, nn.LayerNorm):
+                if m.weight is not None:
+                    m.weight.data.fill_(1)
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def _make_layer(self, block, planes, hidden_size, blocks, final=False, fixup_l=1):
         rescale = None
