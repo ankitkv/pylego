@@ -1,10 +1,20 @@
 from abc import ABC, abstractmethod
-import contextlib
 import glob
 import pathlib
+import sys
 
 import torch
 from torch import nn, optim
+
+
+if sys.version_info.minor < 7:
+    class nullcontext():
+        def __enter__(self):
+            return None
+        def __exit__(self, *excinfo):
+            pass
+else:
+    from contextlib import nullcontext
 
 
 class Model(ABC):
@@ -84,7 +94,7 @@ class Model(ABC):
         if not isinstance(data, list) and not isinstance(data, tuple):
             data = [data]
         if self.is_training():
-            context = contextlib.nullcontext()
+            context = nullcontext()
         else:
             context = torch.no_grad()
         with context:
@@ -98,7 +108,7 @@ class Model(ABC):
         if not isinstance(data, list) and not isinstance(data, tuple):
             data = [data]
         if self.is_training():
-            context = contextlib.nullcontext()
+            context = nullcontext()
         else:
             context = torch.no_grad()
         with context:
