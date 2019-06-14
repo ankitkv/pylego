@@ -69,7 +69,7 @@ class ResBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, rescale=None, norm=None, nonlinearity=F.elu, final=False,
-                 skip_last_norm=False, fixup_l=1, negative_slope=0.0, enable_gain=True, cond_dims=0, cond_model=None):
+                 skip_last_norm=False, fixup_l=1, negative_slope=0.0, enable_gain=True, cond_model=None):
         super().__init__()
         self.final = final
         self.skip_last_norm = skip_last_norm
@@ -80,16 +80,16 @@ class ResBlock(nn.Module):
             self.upsample = nn.Identity()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         if norm is not None:
-            self.bn1 = norm(planes, affine=not cond_dims)
+            self.bn1 = norm(planes, affine=cond_model is None)
         else:
             self.bn1 = nn.Identity()
         self.nonlinearity = nonlinearity
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, bias=False)
         if norm is not None:
-            self.bn2 = norm(planes, affine=not cond_dims)
+            self.bn2 = norm(planes, affine=cond_model is None)
         else:
             self.bn2 = nn.Identity()
-        if cond_dims > 0:
+        if cond_model is not None:
             self.cond1 = cond_model(planes)
             self.cond2 = cond_model(planes)
         else:
@@ -144,9 +144,9 @@ class ResBlock(nn.Module):
 class ResNet(nn.Module):
 
     def __init__(self, inplanes, layers, block=None, norm=None, nonlinearity=F.elu, skip_last_norm=False,
-                 total_layers=-1, negative_slope=0.0, enable_gain=True, cond_dims=0, cond_model=None):
+                 total_layers=-1, negative_slope=0.0, enable_gain=True, cond_model=None):
         '''layers is a list of tuples (layer_size, input_planes, stride). Negative stride for upscaling.
-        If cond_dims > 0, cond_model should be a function that can create a module based on constructor arg 'channels'.
+        If cond_model is not None, it should be a function that can create a module based on constructor arg 'channels'.
         The module should take as input a conditioning variable and producing two outputs (weight, bias) of sizes
         (batch_size, channels or 1).'''
         super().__init__()
@@ -154,7 +154,6 @@ class ResNet(nn.Module):
         self.skip_last_norm = skip_last_norm
         self.negative_slope = negative_slope
         self.enable_gain = enable_gain
-        self.cond_dims = cond_dims
         self.cond_model = cond_model
         if block is None:
             block = ResBlock
@@ -206,7 +205,7 @@ class ResNet(nn.Module):
         layer_final = final and blocks == 1
         layers.append(block(self.inplanes, planes, stride, rescale, norm=self.norm, nonlinearity=self.nonlinearity,
                             final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
-                            negative_slope=self.negative_slope, enable_gain=self.enable_gain, cond_dims=self.cond_dims,
+                            negative_slope=self.negative_slope, enable_gain=self.enable_gain,
                             cond_model=self.cond_model))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
@@ -214,7 +213,7 @@ class ResNet(nn.Module):
             layers.append(block(self.inplanes, planes, norm=self.norm, nonlinearity=self.nonlinearity,
                                 final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
                                 negative_slope=self.negative_slope, enable_gain=self.enable_gain,
-                                cond_dims=self.cond_dims, cond_model=self.cond_model))
+                                cond_model=self.cond_model))
 
         return nn.Sequential(*layers)
 
@@ -226,28 +225,28 @@ class ResBlock1d(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, hidden_size, rescale=None, norm=None, nonlinearity=F.elu, final=False,
-                 skip_last_norm=False, fixup_l=1, enable_gain=True, cond_dims=0, cond_model=None):
+                 skip_last_norm=False, fixup_l=1, enable_gain=True, cond_model=None):
         super().__init__()
         self.final = final
         self.skip_last_norm = skip_last_norm
         self.fc1 = nn.Linear(inplanes, hidden_size, bias=False)
         if norm is not None:
             if norm == nn.LayerNorm:
-                self.bn1 = norm(hidden_size, elementwise_affine=not cond_dims)
+                self.bn1 = norm(hidden_size, elementwise_affine=cond_model is None)
             else:
-                self.bn1 = norm(hidden_size, affine=not cond_dims)
+                self.bn1 = norm(hidden_size, affine=cond_model is None)
         else:
             self.bn1 = nn.Identity()
         self.nonlinearity = nonlinearity
         self.fc2 = nn.Linear(hidden_size, planes, bias=False)
         if norm is not None:
             if norm == nn.LayerNorm:
-                self.bn2 = norm(planes, elementwise_affine=not cond_dims)
+                self.bn2 = norm(planes, elementwise_affine=cond_model is None)
             else:
-                self.bn2 = norm(planes, affine=not cond_dims)
+                self.bn2 = norm(planes, affine=cond_model is None)
         else:
             self.bn2 = nn.Identity()
-        if cond_dims > 0:
+        if cond_model is not None:
             self.cond1 = cond_model(hidden_size)
             self.cond2 = cond_model(planes)
         else:
@@ -301,16 +300,15 @@ class ResBlock1d(nn.Module):
 class ResNet1d(nn.Module):
 
     def __init__(self, inplanes, layers, block=None, norm=None, nonlinearity=F.elu, skip_last_norm=False,
-                 total_layers=-1, enable_gain=True, cond_dims=0, cond_model=None):
+                 total_layers=-1, enable_gain=True, cond_model=None):
         '''layers is a list of tuples (layer_size, inout_planes, hidden_size).
-        If cond_dims > 0, cond_model should be a function that can create a module based on constructor arg 'dims'.
+        If cond_model is not None, it should be a function that can create a module based on constructor arg 'dims'.
         The module should take as input a conditioning variable and producing two outputs (weight, bias) of sizes
         (batch_size, dims or 1).'''
         super().__init__()
         self.norm = norm
         self.skip_last_norm = skip_last_norm
         self.enable_gain = enable_gain
-        self.cond_dims = cond_dims
         self.cond_model = cond_model
         if block is None:
             block = ResBlock1d
@@ -354,14 +352,13 @@ class ResNet1d(nn.Module):
         layer_final = final and blocks == 1
         layers.append(block(self.inplanes, planes, hidden_size, rescale=rescale, norm=self.norm,
                             nonlinearity=self.nonlinearity, final=layer_final, skip_last_norm=self.skip_last_norm,
-                            fixup_l=fixup_l, enable_gain=self.enable_gain, cond_dims=self.cond_dims,
-                            cond_model=self.cond_model))
+                            fixup_l=fixup_l, enable_gain=self.enable_gain, cond_model=self.cond_model))
         self.inplanes = planes * block.expansion
         for i in range(1, blocks):
             layer_final = final and i == blocks - 1
             layers.append(block(self.inplanes, planes, hidden_size, norm=self.norm, nonlinearity=self.nonlinearity,
                                 final=layer_final, skip_last_norm=self.skip_last_norm, fixup_l=fixup_l,
-                                enable_gain=self.enable_gain, cond_dims=self.cond_dims, cond_model=self.cond_model))
+                                enable_gain=self.enable_gain, cond_model=self.cond_model))
 
         return nn.Sequential(*layers)
 
