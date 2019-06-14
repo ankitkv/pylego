@@ -110,7 +110,8 @@ class ResBlock(nn.Module):
         else:
             self.conv2.weight.data.zero_()
 
-    def forward(self, x, y=None):
+    def forward(self, args):
+        x, y = args
         identity = x
 
         out = self.upsample(x + self.biases[0])
@@ -138,7 +139,7 @@ class ResBlock(nn.Module):
         if not self.final:
             out = self.nonlinearity(out)
 
-        return out
+        return out, y
 
 
 class ResNet(nn.Module):
@@ -217,8 +218,8 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        return self.layers(x)
+    def forward(self, x, y=None):
+        return self.layers((x, y))[0]
 
 
 class ResBlock1d(nn.Module):
@@ -266,7 +267,8 @@ class ResBlock1d(nn.Module):
         else:
             self.fc2.weight.data.zero_()
 
-    def forward(self, x, y=None):
+    def forward(self, args):
+        x, y = args
         identity = x
 
         out = x + self.biases[0]
@@ -294,7 +296,7 @@ class ResBlock1d(nn.Module):
         if not self.final:
             out = self.nonlinearity(out)
 
-        return out
+        return out, y
 
 
 class ResNet1d(nn.Module):
@@ -362,8 +364,8 @@ class ResNet1d(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x):
-        return self.layers(x)
+    def forward(self, x, y=None):
+        return self.layers((x, y))[0]
 
 
 class MultilayerLSTMCell(nn.Module):
