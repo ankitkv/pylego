@@ -464,6 +464,7 @@ class ConvLSTMCell(nn.Module):
         self.padding = kernel_size[0] // 2, kernel_size[1] // 2
         self.bias = bias
 
+        # TODO allow using a small ResNet
         self.conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
                               out_channels=4 * self.hidden_dim,
                               kernel_size=self.kernel_size,
@@ -493,7 +494,7 @@ class ConvLSTMCell(nn.Module):
                 torch.zeros(b, self.hidden_dim, h, w, dtype=dtype, device=device))
 
 
-class ConvLSTM(nn.Module):
+class ConvLSTM(nn.Module):  # TODO use_previous_higher, every_layer_input
     """
     Convolutional LSTM
 
@@ -536,12 +537,21 @@ class ConvLSTM(nn.Module):
 
         self.cell_list = nn.ModuleList(cell_list)
 
-    def forward(self, input_tensor, hidden_state=None):
+    def forward(self, input_tensor, hidden_state=None, reset=None):
+        '''If reset is 1.0, the RNN state is reset AFTER that timestep's output is produced, otherwise if reset is 0.0,
+        nothing is changed.'''
+
         if not self.batch_first:
             # (t, b, c, h, w) -> (b, t, c, h, w)
             input_tensor = input_tensor.permute(1, 0, 2, 3, 4)
+            if reset is not None:
+                reset = reset.permute(1, 0)
+        if reset is not None and not torch.any(reset > 1e-6):
+            reset = None
+        if reset is not None:
+            reset = reset[..., None, None, None]
 
-        # Implement stateful ConvLSTM
+        # TODO implement stateful ConvLSTM
         if hidden_state is not None:
             raise NotImplementedError()
         else:
@@ -554,14 +564,18 @@ class ConvLSTM(nn.Module):
         seq_len = input_tensor.size(1)
         cur_layer_input = input_tensor
 
-        for layer_idx in range(self.num_layers):
+        if reset is not None:
+            resets = [reset[:, t, :, :, :] for t in range(seq_len - 1)]
 
+        for layer_idx in range(self.num_layers):
             h, c = hidden_state[layer_idx]
             output_inner = []
             for t in range(seq_len):
-
-                h, c = self.cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :],
-                                                 cur_state=[h, c])
+                if t > 0 and reset is not None:
+                    reset_t = resets[t - 1]
+                    h = h * (1.0 - reset_t)
+                    c = c * (1.0 - reset_t)
+                h, c = self.cell_list[layer_idx](input_tensor=cur_layer_input[:, t, :, :, :], cur_state=[h, c])
                 output_inner.append(h)
 
             layer_output = torch.stack(output_inner, dim=1)
