@@ -506,13 +506,14 @@ class ConvLSTM(nn.Module):  # TODO use_previous_higher, every_layer_input
     https://github.com/SreenivasVRao/ConvGRU-ConvLSTM-PyTorch/blob/master/convlstm.py
     """
 
-    def __init__(self, in_channels, hidden_channels, kernel_size, num_layers,
-                 batch_first=False, bias=True, return_all_layers=False):
+    def __init__(self, in_channels, hidden_channels, kernel_size, num_layers, bias=True, return_all_layers=False):
+        '''Input and output are (batch, time, channels, height, width)'''
         super().__init__()
-
+        if not isinstance(kernel_size, tuple):
+            kernel_size = (kernel_size, kernel_size)
         self._check_kernel_size_consistency(kernel_size)
 
-        # Make sure that both `kernel_size` and `hidden_dim` are lists having len == num_layers
+        # Make sure that both `kernel_size` and `hidden_channels` are lists having len == num_layers
         kernel_size = self._extend_for_multilayer(kernel_size, num_layers)
         hidden_channels = self._extend_for_multilayer(hidden_channels, num_layers)
         if not len(kernel_size) == len(hidden_channels) == num_layers:
@@ -522,7 +523,6 @@ class ConvLSTM(nn.Module):  # TODO use_previous_higher, every_layer_input
         self.hidden_dim = hidden_channels
         self.kernel_size = kernel_size
         self.num_layers = num_layers
-        self.batch_first = batch_first
         self.bias = bias
         self.return_all_layers = return_all_layers
 
@@ -541,11 +541,6 @@ class ConvLSTM(nn.Module):  # TODO use_previous_higher, every_layer_input
         '''If reset is 1.0, the RNN state is reset AFTER that timestep's output is produced, otherwise if reset is 0.0,
         nothing is changed.'''
 
-        if not self.batch_first:
-            # (t, b, c, h, w) -> (b, t, c, h, w)
-            input_tensor = input_tensor.permute(1, 0, 2, 3, 4)
-            if reset is not None:
-                reset = reset.permute(1, 0)
         if reset is not None and not torch.any(reset > 1e-6):
             reset = None
         if reset is not None:
@@ -588,7 +583,7 @@ class ConvLSTM(nn.Module):  # TODO use_previous_higher, every_layer_input
             layer_output_list = layer_output_list[-1:]
             last_state_list = last_state_list[-1:]
 
-        return layer_output_list, last_state_list
+        return torch.cat(layer_output_list, dim=2), last_state_list
 
     def _init_hidden(self, b, h, w, dtype, device):
         init_states = []
@@ -621,14 +616,11 @@ class ConvBLSTM(nn.Module):
     https://github.com/SreenivasVRao/ConvGRU-ConvLSTM-PyTorch/blob/master/convlstm.py
     """
 
-    def __init__(self, in_channels, hidden_channels,
-                 kernel_size, num_layers, bias=True, batch_first=False):
+    def __init__(self, in_channels, hidden_channels, kernel_size, num_layers, bias=True):
 
         super().__init__()
-        self.forward_net = ConvLSTM(in_channels, hidden_channels//2, kernel_size,
-                                    num_layers, batch_first=batch_first, bias=bias)
-        self.reverse_net = ConvLSTM(in_channels, hidden_channels//2, kernel_size,
-                                    num_layers, batch_first=batch_first, bias=bias)
+        self.forward_net = ConvLSTM(in_channels, hidden_channels//2, kernel_size, num_layers, bias=bias)
+        self.reverse_net = ConvLSTM(in_channels, hidden_channels//2, kernel_size, num_layers, bias=bias)
 
     def forward(self, xforward, xreverse):
         """
