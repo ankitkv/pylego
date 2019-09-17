@@ -9,7 +9,7 @@ from .basemnist import MNISTBaseRunner
 class ClassificationRunner(MNISTBaseRunner):
 
     def __init__(self, flags, *args, **kwargs):
-        super().__init__(flags, BaseClassification, ['loss'])
+        super().__init__(flags, BaseClassification)
 
     def run_batch(self, batch, train=False):
         x, y = self.model.prepare_batch(batch)
