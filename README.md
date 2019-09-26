@@ -17,7 +17,7 @@ pip install --user -e .
 
 An MNIST classification project using `pylego` is included in `examples/mnist_classification`.
 
-For a more advanced example, see implementations of [TD-VAE][1] or [ALI][2].
+For more advanced examples, see implementations of [TD-VAE][1] or [ALI][2].
 
 [1]: https://github.com/ankitkv/TD-VAE
 [2]: https://github.com/ankitkv/ALI
