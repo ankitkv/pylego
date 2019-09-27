@@ -53,7 +53,7 @@ def scaled_int(tensor, scale=1.0):
 def save_comparison_grid(fname, *args, border_width=2, border_shade=0.0, desired_aspect=1.0, format='nchw',
                          rows_cols=None, retain_sequence=False):
     """Arrange image batches in a grid such that corresponding images in *args are next to each other.
-    All images should be in range [0,1].
+    All images should be in range [0,1]. The (n_rows, n_cols) tuple for the written image is returned.
 
     The automatic behavior can be overridden by providing the following arguments:
         rows_cols: tuple (n_rows, n_cols)
@@ -144,6 +144,7 @@ def save_comparison_grid(fname, *args, border_width=2, border_shade=0.0, desired
 
     im = Image.fromarray((args * 255).astype(np.uint8))
     im.save(fname)
+    return (nH, nW)
 
 
 class LinearDecay:
