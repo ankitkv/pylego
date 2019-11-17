@@ -30,7 +30,13 @@ class Model(ABC):
             torch.set_anomaly_enabled(True)
 
         if isinstance(optimizer, str):
-            if optimizer == 'adam':
+            if optimizer == 'sgd':
+                if learning_rate < 0.0:
+                    learning_rate = 0.1
+                if momentum < 0.0:
+                    momentum = 0.0
+                self.optimizer = optim.SGD(self.model.parameters(), lr=learning_rate, momentum=momentum)
+            elif optimizer == 'adam':
                 if learning_rate < 0.0:
                     learning_rate = 1e-3
                 self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
