@@ -26,9 +26,18 @@ class Model(ABC):
         self.save_file = save_file
         self.max_save_files = max_save_files
         self.debug = debug
+        self.device = torch.device("cuda" if cuda else "cpu")
+        self.train_steps = 0
         if debug:
             torch.set_anomaly_enabled(True)
 
+        self.setup_optimizer(optimizer, learning_rate, momentum)
+        if self.model is not None:
+            self.model.to(self.device)
+
+        self.initialize(load_file)
+
+    def setup_optimizer(self, optimizer=None, learning_rate=-1, momentum=-1):
         if isinstance(optimizer, str):
             if optimizer == 'sgd':
                 if learning_rate < 0.0:
@@ -49,12 +58,6 @@ class Model(ABC):
                                                centered=True)
         else:
             self.optimizer = optimizer
-        self.device = torch.device("cuda" if cuda else "cpu")
-        self.train_steps = 0
-        if self.model is not None:
-            self.model.to(self.device)
-
-        self.initialize(load_file)
 
     def load(self, load_file):
         """Load a model from a saved file."""
