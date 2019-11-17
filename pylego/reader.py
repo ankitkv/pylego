@@ -40,7 +40,7 @@ class DatasetReader(Reader):
         self.dataset_splits = dataset_splits
         super().__init__(collections.OrderedDict([(k, len(v)) for k, v in dataset_splits.items()]))
 
-    def process_batch(self, batch):
+    def process_batch(self, batch, split_name=None):
         """Process batch before yielding from iter_batches."""
         return batch
 
@@ -50,6 +50,6 @@ class DatasetReader(Reader):
                                  num_workers=threads, drop_last=not partial_batching, worker_init_fn=_worker_init)
         for _ in range(epochs):
             for i, batch in enumerate(loader):
-                yield self.process_batch(batch)
+                yield self.process_batch(batch, split_name=split_name)
                 if i + 1 == max_batches:
                     break
