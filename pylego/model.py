@@ -27,6 +27,7 @@ class Model(ABC):
         self.max_save_files = max_save_files
         self.debug = debug
         self.device = torch.device("cuda" if cuda else "cpu")
+        self.epoch = 0
         self.train_steps = 0
         if debug:
             torch.set_anomaly_enabled(True)
@@ -62,10 +63,11 @@ class Model(ABC):
     def load(self, load_file):
         """Load a model from a saved file."""
         print("* Loading model from", load_file, "...")
-        m_state_dict, o_state_dict, train_steps = torch.load(load_file)
+        m_state_dict, o_state_dict, train_steps, epoch = torch.load(load_file)
         self.model.load_state_dict(m_state_dict)
         self.optimizer.load_state_dict(o_state_dict)
         self.train_steps = train_steps
+        self.epoch = epoch
         print("* Loaded model from", load_file)
 
     def initialize(self, load_file):
@@ -83,7 +85,7 @@ class Model(ABC):
         for _, fname in pairs[self.max_save_files - 1:]:
             pathlib.Path(fname).unlink()
 
-        save_objs = [self.model.state_dict(), self.optimizer.state_dict(), self.train_steps]
+        save_objs = [self.model.state_dict(), self.optimizer.state_dict(), self.train_steps, self.epoch]
         torch.save(save_objs, save_fname)
         print("* Saved model to", save_fname)
 
@@ -140,6 +142,9 @@ class Model(ABC):
         self.train_steps += 1
         if (self.save_every > 0 and self.train_steps % self.save_every == 0):
             self.save(self.save_file)
+
+    def increment_epoch(self):
+        self.epoch += 1
 
     def train(self, loss, clip_grad_norm=None):
         assert self.is_training()

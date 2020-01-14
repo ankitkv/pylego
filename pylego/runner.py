@@ -168,14 +168,14 @@ class Runner(ABC):
             visualize_split='test'):
         """Run the main training loop with validation and a final test epoch, or just visualization on the
         test epoch."""
-        epoch = -1
         if visualize_only:
             self.model.set_train(False)
-            self.post_epoch_visualize(epoch, visualize_split)
+            self.post_epoch_visualize(self.model.epoch, visualize_split)
         else:
-            for epoch in range(self.epochs):
-                self.run_epoch(epoch, train_split, train=True)
+            while self.model.epoch < self.epochs:
+                self.run_epoch(self.model.epoch, train_split, train=True)
                 if val_split:
-                    self.run_epoch(epoch, val_split, train=False)
+                    self.run_epoch(self.model.epoch, val_split, train=False)
+                self.model.increment_epoch()
             if test_split:
-                self.run_epoch(epoch + 1, test_split, train=False, log=False)
+                self.run_epoch(self.model.epoch, test_split, train=False, log=False)
