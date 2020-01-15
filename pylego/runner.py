@@ -5,8 +5,18 @@ import time
 from abc import ABC, abstractmethod
 
 import numpy as np
-from tensorboardX import SummaryWriter
 import torch
+
+
+class WandBSummaryWriter:
+
+    def __init__(self, wandb, dummy=False):
+        self.wandb = wandb
+        self.dummy = dummy
+
+    def add_scalar(self, key, value, global_step=None):
+        if not self.dummy:
+            self.wandb.log({key: value}, step=global_step)
 
 
 class Runner(ABC):
@@ -15,7 +25,7 @@ class Runner(ABC):
     """
 
     def __init__(self, reader, batch_size, epochs, log_dir, threads=1, print_every=50, visualize_every=-1,
-                 max_batches=-1, seed=0):
+                 max_batches=-1, seed=0, logger='tensorboard', wandb_init_args=None):
         self.reader = reader
         self.batch_size = batch_size
         self.epochs = epochs
@@ -29,7 +39,16 @@ class Runner(ABC):
         torch.manual_seed(seed)
         random.seed(seed + 21)
         np.random.seed(seed + 54)
-        self.summary_writer = SummaryWriter(log_dir, flush_secs=60)
+
+        if logger == 'tensorboard':
+            from tensorboardX import SummaryWriter
+            self.summary_writer = SummaryWriter(log_dir, flush_secs=60)
+        elif logger == 'wandb':
+            import wandb
+            wandb.init(**wandb_init_args)
+            self.summary_writer = WandBSummaryWriter(wandb)
+        else:
+            self.summary_writer = WandBSummaryWriter(None, dummy=True)
 
     @abstractmethod
     def run_batch(self, batch, train=False):
