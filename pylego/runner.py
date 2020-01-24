@@ -83,26 +83,28 @@ class Runner(ABC):
         self.epoch_reports = []
 
     def get_epoch_report(self):
-        """Get a consolidated epoch report."""
+        """Get a consolidated epoch report. Ignores keys under 'temp'."""
         n_samples = len(self.epoch_reports)
         if n_samples == 0:
             return None
 
         keys = list(self.epoch_reports[0].keys())
-        epoch_report = collections.OrderedDict([(k, 0.0) for k in keys])
+        epoch_report = collections.OrderedDict([(k, 0.0) for k in keys if not k.startswith('temp/')])
         for report in self.epoch_reports:
             for k, v in report.items():
-                epoch_report[k] += v
+                if k in epoch_report:
+                    epoch_report[k] += v
         for k, v in epoch_report.items():
             epoch_report[k] /= n_samples
 
         return epoch_report
 
     def log_report(self, report, train_steps, prefix=""):
-        """Log the given report to TensorBoard summary. Keys under 'print_only' are ignored."""
+        """Log the given report to TensorBoard summary. Keys under 'print_only' and 'temp' are ignored."""
         if report is not None:
             for k, v in report.items():
-                if k.rsplit('/', 1)[0] != 'print_only':
+                parent = k.rsplit('/', 1)[0]
+                if parent != 'print_only' and parent != 'temp':
                     new_key = prefix + k
                     self.summary_writer.add_scalar(new_key, v, global_step=train_steps)
 
