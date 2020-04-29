@@ -684,6 +684,44 @@ class SpectralNorm1d(object):
         return fn
 
 
+class Stack:
+    '''A batched stack. Requires input elements to have batch dimension first.'''
+
+    def __init__(self, batch_size, length, input_shape, dtype=torch.float32, device=None):
+        super().__init__()
+        self.length = length
+        self.input_shape = input_shape
+        self.data = torch.zeros([batch_size, length] + list(input_shape), dtype=dtype, device=device)
+        self.cur = torch.zeros([batch_size], dtype=torch.long, device=device)
+
+    def push(self, indices, x):
+        sliced_cur = self.cur[indices]
+        self.data[indices, sliced_cur] = x
+        self.cur[indices] = sliced_cur + 1
+
+    def _top(self, indices, get_top):
+        sliced_top = self.cur[indices] - 1
+        if get_top:
+            top_data = self.data[indices, sliced_top]
+        else:
+            top_data = None
+        return top_data, sliced_top
+
+    def pop(self, indices, get_top):
+        top_data, sliced_top = self._top(indices, get_top)
+        self.cur[indices] = sliced_top
+        return top_data
+
+    def top(self, indices):
+        return self._top(indices, True)[0]
+
+    def empty(self):
+        return self.cur == 0
+
+    def full(self):
+        return self.cur == self.length
+
+
 def spectral_norm1d(module, name='weight', eps=1e-6):
     SpectralNorm1d.apply(module, name, eps)
     return module
