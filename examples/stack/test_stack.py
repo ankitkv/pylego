@@ -9,19 +9,25 @@ BATCH_SIZE = 5
 STACK_SIZE = 6
 SEQ_SIZE = 100
 IN_SHAPE = ()
+INDICED = True
 
 
 if __name__ == '__main__':
+    torch.manual_seed(42)
     start = time.time()
     stack = Stack(BATCH_SIZE, STACK_SIZE, IN_SHAPE)
     stream = torch.randn(BATCH_SIZE, SEQ_SIZE, *IN_SHAPE, requires_grad=True)
     for t in range(SEQ_SIZE):
         elem = stream[:, t]
         print(t, 'elem:', elem)
-        push_ind = torch.nonzero(torch.randint(2, (BATCH_SIZE,), dtype=torch.bool) & ~stack.full(), as_tuple=True)[0]
+        push_ind = torch.randint(2, (BATCH_SIZE,), dtype=torch.bool) & ~stack.full()
+        if INDICED:
+            push_ind = torch.nonzero(push_ind, as_tuple=True)[0]
         print('push_ind:', push_ind)
         stack.push(push_ind, elem[push_ind])
-        pop_ind = torch.nonzero(torch.randint(2, (BATCH_SIZE,), dtype=torch.bool) & ~stack.empty(), as_tuple=True)[0]
+        pop_ind = torch.randint(2, (BATCH_SIZE,), dtype=torch.bool) & ~stack.empty()
+        if INDICED:
+            pop_ind = torch.nonzero(pop_ind, as_tuple=True)[0]
         print('pop_ind:', pop_ind)
         popped = stack.pop(pop_ind, True)
         print('popped:', popped)
