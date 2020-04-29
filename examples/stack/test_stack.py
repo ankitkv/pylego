@@ -12,20 +12,23 @@ IN_SHAPE = ()
 INDICED = True
 
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+
 if __name__ == '__main__':
     torch.manual_seed(42)
     start = time.time()
-    stack = Stack(BATCH_SIZE, STACK_SIZE, IN_SHAPE)
-    stream = torch.randn(BATCH_SIZE, SEQ_SIZE, *IN_SHAPE, requires_grad=True)
+    stack = Stack(BATCH_SIZE, STACK_SIZE, IN_SHAPE, device=device)
+    stream = torch.randn(BATCH_SIZE, SEQ_SIZE, *IN_SHAPE, device=device, requires_grad=True)
     for t in range(SEQ_SIZE):
         elem = stream[:, t]
         print(t, 'elem:', elem)
-        push_ind = torch.randint(2, (BATCH_SIZE,), dtype=torch.bool) & ~stack.full()
+        push_ind = torch.randint(2, (BATCH_SIZE,), dtype=torch.bool, device=device) & ~stack.full()
         if INDICED:
             push_ind = torch.nonzero(push_ind, as_tuple=True)[0]
         print('push_ind:', push_ind)
         stack.push(push_ind, elem[push_ind])
-        pop_ind = torch.randint(2, (BATCH_SIZE,), dtype=torch.bool) & ~stack.empty()
+        pop_ind = torch.randint(2, (BATCH_SIZE,), dtype=torch.bool, device=device) & ~stack.empty()
         if INDICED:
             pop_ind = torch.nonzero(pop_ind, as_tuple=True)[0]
         print('pop_ind:', pop_ind)
